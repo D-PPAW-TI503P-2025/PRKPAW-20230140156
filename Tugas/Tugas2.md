@@ -3,12 +3,12 @@
 ## Screenshot API CRUD
 
 ### 📘 GET semua data
-![GET All Books](Tugas/ss/endpoit_Get.png)
+![GET All Books](ss/endpoit_Get.png)
 
 ### 🟢 PUT tambah buku
-![POST Book](/ss/endpoint_Put.png)
+![POST Book](ss/endpoint_Put.png)
 ### 🔴 DELETE hapus buku
-![DELETE Book](/ss/Endpoint_Delete.png)
+![DELETE Book](ss/Endpoint_Delete.png)
  
 ### Post Create BUku
 ![Endpoint](ss/Endpoint_Post.png)
