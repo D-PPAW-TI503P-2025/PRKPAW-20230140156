@@ -1,27 +1,34 @@
-const { Presensi, Sequelize } = require("../models");
+const { Presensi } = require("../models");
+const { Op } = require("sequelize");
 
 exports.getDailyReport = async (req, res) => {
   try {
-    console.log("Controller: Mengambil data laporan harian dari database...");
+    const { nama, tanggalMulai, tanggalSelesai } = req.query;
+    let options = { where: {} };
 
-    const today = new Date().toISOString().split("T")[0];
+    // Filter nama
+    if (nama) {
+      options.where.nama = {
+        [Op.like]: `%${nama}%`,
+      };
+    }
 
-    const presensiRecords = await Presensi.findAll({
-      where: Sequelize.where(
-        Sequelize.fn("DATE", Sequelize.col("checkIn")),
-        today
-      ),
-      order: [["checkIn", "ASC"]],
-    });
+    // Filter rentang tanggal
+    if (tanggalMulai && tanggalSelesai) {
+      options.where.createdAt = {
+        [Op.between]: [tanggalMulai, tanggalSelesai],
+      };
+    }
 
-    res.status(200).json({
-      reportDate: today,
-      data: presensiRecords,
+    const records = await Presensi.findAll(options);
+
+    res.json({
+      reportDate: new Date().toLocaleDateString(),
+      data: records,
     });
   } catch (error) {
-    console.error("Gagal mengambil data presensi:", error);
     res.status(500).json({
-      message: "Terjadi kesalahan saat mengambil data laporan harian",
+      message: "Gagal mengambil laporan",
       error: error.message,
     });
   }
