@@ -1,3 +1,4 @@
+// src/components/ReportPage.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -9,68 +10,75 @@ const ReportPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const navigate = useNavigate();
 
-  // Fungsi fetchReports dibungkus useCallback supaya stabil
-  const fetchReports = useCallback(async (query = "") => {
+  // --- Validasi token JWT ---
+  const validateToken = useCallback(() => {
     const token = localStorage.getItem("token");
+    if (!token) return null;
 
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    // Decode token untuk cek expiry
     try {
       const decoded = jwtDecode(token);
-      const now = Date.now() / 1000; // dalam detik
+      const now = Math.floor(Date.now() / 1000);
+
       if (decoded.exp < now) {
         localStorage.removeItem("token");
-        alert("Sesi habis, silakan login ulang");
+        return null;
+      }
+
+      return token;
+    } catch {
+      localStorage.removeItem("token");
+      return null;
+    }
+  }, []);
+
+  // --- Ambil laporan presensi ---
+  const fetchReports = useCallback(
+    async (query = "") => {
+      const token = validateToken();
+
+      if (!token) {
         navigate("/login");
         return;
       }
-    } catch (decodeErr) {
-      console.error("Token tidak valid:", decodeErr);
-      localStorage.removeItem("token");
-      navigate("/login");
-      return;
-    }
 
-    try {
-      const config = {
-        headers: { Authorization: `Bearer ${token}` },
-        params: query ? { search: query } : {},
-      };
+      try {
+        const res = await axios.get(
+          "http://localhost:3001/api/reports/daily",
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            params: query ? { search: query } : {},
+          }
+        );
 
-      setError("");
+        const data = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data || [];
 
-      const response = await axios.get(
-        "http://localhost:3001/api/reports/daily",
-        config
-      );
+        setReports(data);
+        setError("");
+      } catch (err) {
+        const status = err.response?.status;
+        const msg =
+          err.response?.data?.message || "Gagal memuat laporan presensi.";
 
-      const data = Array.isArray(response.data)
-        ? response.data
-        : response.data.data || [];
+        setError(msg);
+        setReports([]);
 
-      setReports(data);
-    } catch (err) {
-      const status = err.response?.status;
-      const msg = err.response?.data?.message || "Gagal memuat laporan presensi.";
-      setError(msg);
-      setReports([]);
-
-      if (status === 401 || status === 403) {
-        // Token expired atau akses ditolak
-        localStorage.removeItem("token");
-        navigate("/login");
+        if (status === 401 || status === 403) {
+          localStorage.removeItem("token");
+          navigate("/login");
+        }
       }
-    }
-  }, [navigate]);
+    },
+    [validateToken, navigate]
+  );
 
+  // --- Load data pertama kali ---
   useEffect(() => {
-    fetchReports("");
+    fetchReports();
   }, [fetchReports]);
 
+  // --- Form pencarian ---
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     fetchReports(searchTerm.trim());
@@ -109,33 +117,71 @@ const ReportPage = () => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-In</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-Out</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Nama
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Check-In
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Check-Out
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Bukti Foto
+                </th>
               </tr>
             </thead>
+
             <tbody className="bg-white divide-y divide-gray-200">
               {reports.length > 0 ? (
                 reports.map((presensi) => (
                   <tr key={presensi.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {presensi.user ? presensi.user.nama : "N/A"}
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {presensi.user?.nama || "N/A"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+
+                    <td className="px-6 py-4 text-sm text-gray-500">
                       {presensi.checkIn
-                        ? new Date(presensi.checkIn).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+                        ? new Date(presensi.checkIn).toLocaleString("id-ID", {
+                            timeZone: "Asia/Jakarta",
+                          })
                         : "-"}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+
+                    <td className="px-6 py-4 text-sm text-gray-500">
                       {presensi.checkOut
-                        ? new Date(presensi.checkOut).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+                        ? new Date(presensi.checkOut).toLocaleString("id-ID", {
+                            timeZone: "Asia/Jakarta",
+                          })
                         : "Belum Check-Out"}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {presensi.buktiFoto ? (
+                        <a
+                          href={`http://localhost:3001${presensi.buktiFoto}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-block"
+                        >
+                          <img
+                            src={`http://localhost:3001${presensi.buktiFoto}`}
+                            alt="Bukti Presensi"
+                            className="h-16 w-16 object-cover rounded-md border hover:opacity-80 transition cursor-pointer"
+                          />
+                        </a>
+                      ) : (
+                        "-"
+                      )}
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={3} className="px-6 py-4 text-center text-gray-500">
+                  <td
+                    colSpan={4}
+                    className="px-6 py-4 text-center text-gray-500"
+                  >
                     Tidak ada data yang ditemukan.
                   </td>
                 </tr>

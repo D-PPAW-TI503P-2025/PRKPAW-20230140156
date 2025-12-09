@@ -3,40 +3,40 @@ const { Presensi, User, Sequelize } = require("../models");
 const { format } = require("date-fns-tz");
 const { Op } = Sequelize;
 const timeZone = "Asia/Jakarta";
-const multer = require('multer');
-const path = require('path');
+const multer = require("multer");
+const path = require("path");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); 
+    cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
     // Format nama file: userId-timestamp.jpg
     cb(null, `${req.user.id}-${Date.now()}${path.extname(file.originalname)}`);
-  }
+  },
 });
 
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith('image/')) {
+  if (file.mimetype.startsWith("image/")) {
     cb(null, true);
   } else {
-    cb(new Error('Hanya file gambar yang diperbolehkan!'), false);
+    cb(new Error("Hanya file gambar yang diperbolehkan!"), false);
   }
 };
 
 exports.upload = multer({ storage: storage, fileFilter: fileFilter });
 
-
 exports.CheckIn = async (req, res) => {
-  // 2. Gunakan try...catch untuk error handling
   try {
     const { id: userId } = req.user;
     const userName = req.user?.nama || req.user?.name || ""; 
     const { latitude, longitude } = req.body;
     const waktuSekarang = new Date();
-    const buktiFoto = req.file ? req.file.path : null; 
 
-    // 3. Ubah cara mencari data menggunakan 'findOne' dari Sequelize
+    const buktiFoto = req.file
+      ? `/uploads/${req.file.filename}`
+      : null;
+
     const existingRecord = await Presensi.findOne({
       where: { userId: userId, checkOut: null },
     });
@@ -47,26 +47,22 @@ exports.CheckIn = async (req, res) => {
         .json({ message: "Anda sudah melakukan check-in hari ini." });
     }
 
-    // 4. Ubah cara membuat data baru menggunakan 'create' dari Sequelize
     const newRecord = await Presensi.create({
-      userId: userId,
+      userId,
       checkIn: waktuSekarang,
-      latitude: latitude, // <-- Simpan ke database
-      longitude: longitude, // <-- Simpan ke database
-      buktiFoto: buktiFoto 
+      latitude,
+      longitude,
+      buktiFoto,
     });
-
-    
 
     const formattedData = {
       id: newRecord.id,
       userId: newRecord.userId,
-      checkIn: format(newRecord.checkIn, "yyyy-MM-dd HH:mm:ssXXX", {
-        timeZone,
-      }),
+      checkIn: format(newRecord.checkIn, "yyyy-MM-dd HH:mm:ssXXX", { timeZone }),
       checkOut: null,
       latitude: newRecord.latitude,
       longitude: newRecord.longitude,
+      buktiFoto: newRecord.buktiFoto,
       createdAt: newRecord.createdAt,
       updatedAt: newRecord.updatedAt,
     };
@@ -80,9 +76,10 @@ exports.CheckIn = async (req, res) => {
       data: formattedData,
     });
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Terjadi kesalahan pada server", error: error.message });
+    res.status(500).json({
+      message: "Terjadi kesalahan pada server",
+      error: error.message,
+    });
   }
 };
 
@@ -90,7 +87,7 @@ exports.CheckOut = async (req, res) => {
   // Gunakan try...catch
   try {
     const { id: userId } = req.user;
-    const userName = req.user?.nama || req.user?.name || ""; 
+    const userName = req.user?.nama || req.user?.name || "";
     const waktuSekarang = new Date();
 
     // Cari data di database
@@ -142,10 +139,12 @@ exports.updatePresensi = async (req, res) => {
   try {
     const presensiId = req.params.id;
     const { checkIn, checkOut, latitude, longitude } = req.body;
-    if (checkIn === undefined &&
+    if (
+      checkIn === undefined &&
       checkOut === undefined &&
       latitude === undefined &&
-      longitude === undefined) {
+      longitude === undefined
+    ) {
       return res.status(400).json({
         message:
           "Request body tidak berisi data yang valid untuk diupdate (checkIn, checkOut, atau nama).",
@@ -193,12 +192,10 @@ exports.deletePresensi = async (req, res) => {
         .json({ message: "Akses ditolak: Anda bukan pemilik catatan ini." });
     }
     await recordToDelete.destroy();
-    res
-      .status(200)
-      .json({
-        message: "Data presensi berhasil dihapus.",
-        data: recordToDelete,
-      });
+    res.status(200).json({
+      message: "Data presensi berhasil dihapus.",
+      data: recordToDelete,
+    });
   } catch (error) {
     res
       .status(500)
